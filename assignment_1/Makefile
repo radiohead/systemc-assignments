@@ -1,12 +1,11 @@
 CC=g++
-CFLAGS=-Wall -O3
+CFLAGS=-Wall -O2
 
 SYSTEMC_HEADERS_PATH=/usr/local/lib/systemc-2.3/include/
 SYSTEMC_LIB_PATH=/usr/local/lib/systemc-2.3/lib-linux64/
 
 all:
-	mkdir -p ./bin
-	$(CC) $(CFLAGS) -I=$(SYSTEMC_HEADERS_PATH) -L=$(SYSTEMC_LIB_PATH) src/main.cpp -lsystemc -o ./bin/assignment
+	$(CC) $(CFLAGS) -I=$(SYSTEMC_HEADERS_PATH) -L=$(SYSTEMC_LIB_PATH) -lsystemc main.cpp -o assignment_1
 
 clean:
-	rm -rf ./bin/
+	rm assignment_1
