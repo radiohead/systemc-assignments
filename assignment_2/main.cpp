@@ -126,9 +126,9 @@ SC_MODULE(Initiator)
 
     string file_line;
 
-    if (arbiter_channel->trylock() != 1) {
-      // Read lines from file
-      while(getline(*this->input_file, file_line)) {
+    // Read lines from file
+    while(getline(*this->input_file, file_line)) {
+      if (arbiter_channel->trylock() != -1) {
         // Instantiate packet
         pkt packet(this->id, atoi(file_line.c_str()));
 
@@ -136,11 +136,12 @@ SC_MODULE(Initiator)
         output_channel.write(packet);
         // Log packet
         cout << "SND" << endl << "ID: " << packet.get_id() << " DATA: " << packet.get_data() << endl;
-        // Wait for next clock
-        wait();
+
+        arbiter_channel->unlock();
       }
 
-      arbiter_channel->unlock();
+      // Wait for next clock
+      wait();
     }
   }
 
