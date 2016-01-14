@@ -82,14 +82,11 @@ SC_MODULE(Target)
   SC_CTOR(Target)
   {
     SC_METHOD(receive_process);
+    sensitive << input_channel;
   }
 
   void receive_process()
   {
-    // Wait for the clock
-    // to trigger the initiator
-    next_trigger(50, SC_NS);
-
     for (int i = 0; i != input_channel.size(); ++i)
     {
       // Read and log the packet
