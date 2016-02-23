@@ -34,11 +34,15 @@ struct Initiator: sc_module
     for (int i = 0; i < 128; i += 4)
     {
       int data;
+      int address = rand() % this->number_of_targets;
+
+      cout << "Sending to " << address << endl;
+
       tlm::tlm_command cmd = static_cast<tlm::tlm_command>(rand() % 2);
       if (cmd == tlm::TLM_WRITE_COMMAND) data = 0xFF000000 | i;
 
       trans->set_command( cmd );
-      trans->set_address( rand() % this->number_of_targets );
+      trans->set_address( address );
       trans->set_data_ptr( reinterpret_cast<unsigned char*>(&data) );
       trans->set_data_length( 4 );
       trans->set_streaming_width( 4 ); // = data_length to indicate no streaming
@@ -71,20 +75,23 @@ struct Initiator: sc_module
     // Use debug transaction interface to dump memory contents,
     // reusing same transaction object
     // ********************************************************
-    trans->set_command( tlm::TLM_READ_COMMAND );
-    trans->set_address(0);
-    trans->set_read();
-    trans->set_data_length(128);
-
-    unsigned char* data = new unsigned char[128];
-    trans->set_data_ptr(data);
-
-    unsigned int n_bytes = socket->transport_dbg( *trans );
-
-    for (unsigned int i = 0; i < n_bytes; i += 4)
+    for (unsigned int i = 0; i < this->number_of_targets; ++i)
     {
-      cout << "mem[" << i << "] = "
-           << *(reinterpret_cast<unsigned int*>( &data[i] )) << endl;
+      trans->set_command( tlm::TLM_READ_COMMAND );
+      trans->set_address(i);
+      trans->set_read();
+      trans->set_data_length(128);
+
+      unsigned char* data = new unsigned char[128];
+      trans->set_data_ptr(data);
+
+      unsigned int n_bytes = socket->transport_dbg( *trans );
+
+      for (unsigned int i = 0; i < n_bytes; i += 4)
+      {
+        cout << "mem[" << i << "] = "
+             << *(reinterpret_cast<unsigned int*>( &data[i] )) << endl;
+      }
     }
   }
 };
@@ -102,6 +109,7 @@ struct Target: sc_module
   {
     // Register callbacks for incoming interface method calls
     socket.register_b_transport(this, &Target::b_transport);
+    socket.register_transport_dbg(this, &Target::transport_dbg);
 
     // Initialize memory with random data
     for (int i = 0; i < SIZE; i++)
@@ -188,6 +196,7 @@ struct Bus: sc_module
 
       target_sockets[i] = new tlm_utils::simple_target_socket_tagged<Bus>(identifier);
       target_sockets[i]->register_b_transport(this, &Bus::b_transport, i);
+      target_sockets[i]->register_transport_dbg(this, &Bus::transport_dbg, i);
     }
 
     for (unsigned int i = 0; i < N_TARGETS; ++i)
@@ -198,13 +207,26 @@ struct Bus: sc_module
     }
   }
 
-  virtual void b_transport(int socket_id, tlm::tlm_generic_payload& payload, sc_time& delay)
+  virtual void b_transport(int i, tlm::tlm_generic_payload& payload, sc_time& delay)
   {
     if (payload.get_address() <= (N_TARGETS - 1)) {
+      cout << "TRANSPORT[" << payload.get_address() << "]" << endl;
       (*initiator_sockets[payload.get_address()])->b_transport(payload, delay);
     }
     else {
       payload.set_response_status(tlm::TLM_ADDRESS_ERROR_RESPONSE);
+    }
+  }
+
+  virtual unsigned int transport_dbg(int i, tlm::tlm_generic_payload& payload)
+  {
+    if (payload.get_address() <= (N_TARGETS - 1)) {
+      cout << "DBG[" << payload.get_address() << "]" << endl;
+      return (*initiator_sockets[payload.get_address()])->transport_dbg(payload);
+    }
+    else {
+      payload.set_response_status(tlm::TLM_ADDRESS_ERROR_RESPONSE);
+      return 0;
     }
   }
 };
@@ -244,6 +266,6 @@ SC_MODULE(Top)
 int sc_main(int argc, char* argv[])
 {
   Top top("top");
-  sc_start();
+  sc_start(500, SC_NS);
   return 0;
 }
